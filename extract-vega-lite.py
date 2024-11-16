@@ -25,14 +25,18 @@ def extract_columns(input_filepath, output_filepath):
 
     # Extract content within the specified HTML tags
     def extract_html_content(html):
+        if pd.isna(html):
+            return []
         soup = BeautifulSoup(html, 'html.parser')
-        pre_tag = soup.find('pre', {'id': 'vega-lite-spec', 'class': 'vega-lite'})
-        return pre_tag.get_text() if pre_tag else ''
+        pre_tags = soup.find_all('pre', {'id': 'vega-lite-spec', 'class': 'vega-lite'})
+        return [pre_tag.get_text() for pre_tag in pre_tags]
 
-    extracted_df.loc[:, 'content'] = extracted_df['content'].apply(extract_html_content)
+    # Apply the extraction function and explode the list into separate rows
+    extracted_df['content'] = extracted_df['content'].apply(extract_html_content)
+    exploded_df = extracted_df.explode('content')
 
-    # Filter out rows where the content column contains the specified HTML tag
-    filtered_df = extracted_df[extracted_df['content'] != '']
+    # Filter out rows where the content column is empty or contains only '{'
+    filtered_df = exploded_df[(exploded_df['content'] != '') & (exploded_df['content'] != '{')]
 
     # Write the filtered columns to a new Excel file
     filtered_df.to_excel(output_filepath, index=False)
