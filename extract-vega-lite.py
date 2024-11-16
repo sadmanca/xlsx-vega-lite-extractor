@@ -29,14 +29,14 @@ def extract_columns(input_filepath, output_filepath):
             return []
         soup = BeautifulSoup(html, 'html.parser')
         pre_tags = soup.find_all('pre', {'id': 'vega-lite-spec', 'class': 'vega-lite'})
-        return [pre_tag.get_text() for pre_tag in pre_tags]
+        return [pre_tag.get_text().strip() for pre_tag in pre_tags]
 
     # Apply the extraction function and explode the list into separate rows
     extracted_df['content'] = extracted_df['content'].apply(extract_html_content)
     exploded_df = extracted_df.explode('content')
 
-    # Filter out rows where the content column is empty or contains only '{'
-    filtered_df = exploded_df[(exploded_df['content'] != '') & (exploded_df['content'] != '{')]
+    # Filter out rows where the content column is empty or contains only whitespace
+    filtered_df = exploded_df[exploded_df['content'].apply(lambda x: isinstance(x, str) and x.strip() != '')]
 
     # Write the filtered columns to a new Excel file
     filtered_df.to_excel(output_filepath, index=False)
