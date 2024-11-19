@@ -1,8 +1,10 @@
 import pandas as pd
 import argparse
 from bs4 import BeautifulSoup
+import os
+import glob
 
-def extract_columns(input_filepath, output_filepath):
+def extract_columns(input_filepath, output_filepath, filename):
     columns_to_extract = [
         "id",
         "title",
@@ -38,16 +40,29 @@ def extract_columns(input_filepath, output_filepath):
     # Filter out rows where the content column is empty or contains only whitespace
     filtered_df = exploded_df[exploded_df['content'].apply(lambda x: isinstance(x, str) and x.strip() != '')]
 
-    # Write the filtered columns to a new Excel file
-    filtered_df.to_excel(output_filepath, index=False)
+    # Add filename column
+    filtered_df['filename'] = filename
+
+    return filtered_df
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Extract specific columns from an Excel file."
+        description="Extract specific columns from an Excel file or all Excel files in a folder."
     )
-    parser.add_argument("--input", "-i", required=True, help="Input Excel file path")
+    parser.add_argument("--input", "-i", required=True, help="Input Excel file path or folder path")
     parser.add_argument("--output", "-o", required=True, help="Output Excel file path")
 
     args = parser.parse_args()
 
-    extract_columns(args.input, args.output)
+    if os.path.isdir(args.input):
+        all_files = glob.glob(os.path.join(args.input, "*.xlsx"))
+        combined_df = pd.DataFrame()
+        for file in all_files:
+            filename = os.path.splitext(os.path.basename(file))[0]
+            extracted_df = extract_columns(file, args.output, filename)
+            combined_df = pd.concat([combined_df, extracted_df], ignore_index=True)
+        combined_df.to_excel(args.output, index=False)
+    else:
+        filename = os.path.splitext(os.path.basename(args.input))[0]
+        extracted_df = extract_columns(args.input, args.output, filename)
+        extracted_df.to_excel(args.output, index=False)
