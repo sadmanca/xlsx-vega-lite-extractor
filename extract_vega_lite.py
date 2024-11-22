@@ -15,7 +15,7 @@ def classify_diagram(vega_lite_spec):
     except json.JSONDecodeError:
         return 'invalid'
 
-def extract_columns(input_filepath, output_filepath, filename):
+def extract_columns(input_filepath, filename):
     columns_to_extract = [
         "id",
         "title",
@@ -39,23 +39,42 @@ def extract_columns(input_filepath, output_filepath, filename):
     # Extract content within the specified HTML tags
     def extract_html_content(html):
         if pd.isna(html):
-            return []
+            return [], [], []
         soup = BeautifulSoup(html, 'html.parser')
         pre_tags = soup.find_all('pre', {'id': 'vega-lite-spec', 'class': 'vega-lite'})
-        return [pre_tag.get_text().strip() for pre_tag in pre_tags]
+        contents = []
+        figure_numbers = []
+        figure_descriptions = []
+        for pre_tag in pre_tags:
+            content = pre_tag.get_text().strip()
+            contents.append(content)
+            p_tag = pre_tag.find_previous('p')
+            if p_tag:
+                figure_text = p_tag.get_text().strip()
+                if ':' in figure_text:
+                    figure_number, figure_description = figure_text.split(':', 1)
+                    figure_numbers.append(figure_number.strip())
+                    figure_descriptions.append(figure_description.strip())
+                else:
+                    figure_numbers.append('')
+                    figure_descriptions.append('')
+            else:
+                figure_numbers.append('')
+                figure_descriptions.append('')
+        return contents, figure_numbers, figure_descriptions
 
     # Apply the extraction function and explode the list into separate rows
-    extracted_df['content'] = extracted_df['content'].apply(extract_html_content)
-    exploded_df = extracted_df.explode('content')
+    extracted_df[['content', 'figure_number', 'figure_description']] = extracted_df['content'].apply(lambda x: pd.Series(extract_html_content(x)))
+    exploded_df = extracted_df.explode(['content', 'figure_number', 'figure_description'])
 
     # Filter out rows where the content column is empty or contains only whitespace
     filtered_df = exploded_df[exploded_df['content'].apply(lambda x: isinstance(x, str) and x.strip() != '')]
 
     # Add filename column
-    filtered_df['filename'] = filename
+    filtered_df.loc[:, 'filename'] = filename
 
     # Add diagram_type column
-    filtered_df['diagram_type'] = filtered_df['content'].apply(classify_diagram)
+    filtered_df.loc[:, 'diagram_type'] = filtered_df['content'].apply(classify_diagram)
 
     return filtered_df
 
@@ -73,10 +92,10 @@ if __name__ == "__main__":
         combined_df = pd.DataFrame()
         for file in all_files:
             filename = os.path.splitext(os.path.basename(file))[0]
-            extracted_df = extract_columns(file, args.output, filename)
+            extracted_df = extract_columns(file, filename)
             combined_df = pd.concat([combined_df, extracted_df], ignore_index=True)
         combined_df.to_excel(args.output, index=False)
     else:
         filename = os.path.splitext(os.path.basename(args.input))[0]
-        extracted_df = extract_columns(args.input, args.output, filename)
+        extracted_df = extract_columns(args.input, filename)
         extracted_df.to_excel(args.output, index=False)
