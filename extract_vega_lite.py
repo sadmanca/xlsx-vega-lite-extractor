@@ -3,6 +3,17 @@ import argparse
 from bs4 import BeautifulSoup
 import os
 import glob
+import json
+
+def classify_diagram(vega_lite_spec):
+    try:
+        spec = json.loads(vega_lite_spec)
+        if 'mark' in spec:
+            return spec['mark']
+        else:
+            return 'unknown'
+    except json.JSONDecodeError:
+        return 'invalid'
 
 def extract_columns(input_filepath, output_filepath, filename):
     columns_to_extract = [
@@ -42,6 +53,9 @@ def extract_columns(input_filepath, output_filepath, filename):
 
     # Add filename column
     filtered_df['filename'] = filename
+
+    # Add diagram_type column
+    filtered_df['diagram_type'] = filtered_df['content'].apply(classify_diagram)
 
     return filtered_df
 
