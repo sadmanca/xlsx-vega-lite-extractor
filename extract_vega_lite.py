@@ -39,12 +39,13 @@ def extract_columns(input_filepath, filename):
     # Extract content within the specified HTML tags
     def extract_html_content(html):
         if pd.isna(html):
-            return [], [], []
+            return [], [], [], []
         soup = BeautifulSoup(html, 'html.parser')
         pre_tags = soup.find_all('pre', {'id': 'vega-lite-spec', 'class': 'vega-lite'})
         contents = []
         figure_numbers = []
         figure_descriptions = []
+        vega_descriptions = []
         for pre_tag in pre_tags:
             content = pre_tag.get_text().strip()
             contents.append(content)
@@ -61,11 +62,18 @@ def extract_columns(input_filepath, filename):
             else:
                 figure_numbers.append('')
                 figure_descriptions.append('')
-        return contents, figure_numbers, figure_descriptions
+            # Extract the description field from the JSON content
+            try:
+                spec = json.loads(content)
+                vega_description = spec.get('description', '')
+            except json.JSONDecodeError:
+                vega_description = ''
+            vega_descriptions.append(vega_description)
+        return contents, figure_numbers, figure_descriptions, vega_descriptions
 
     # Apply the extraction function and explode the list into separate rows
-    extracted_df[['content', 'figure_number', 'figure_description']] = extracted_df['content'].apply(lambda x: pd.Series(extract_html_content(x)))
-    exploded_df = extracted_df.explode(['content', 'figure_number', 'figure_description'])
+    extracted_df[['content', 'figure_number', 'figure_description', 'vega_description']] = extracted_df['content'].apply(lambda x: pd.Series(extract_html_content(x)))
+    exploded_df = extracted_df.explode(['content', 'figure_number', 'figure_description', 'vega_description'])
 
     # Filter out rows where the content column is empty or contains only whitespace
     filtered_df = exploded_df[exploded_df['content'].apply(lambda x: isinstance(x, str) and x.strip() != '')]
